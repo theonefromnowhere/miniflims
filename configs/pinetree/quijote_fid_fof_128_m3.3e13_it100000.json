@@ -1,0 +1,39 @@
+{
+  "format": "pinetree-monopole-v1",
+  "theta": {
+    "conv_w0": -0.7752799485007219,
+    "conv_w1": 0.07021129683451112,
+    "conv_w2": -0.008392653387814185,
+    "conv_w3": 0.0036144422340774725,
+    "conv_b": 2.093550551992973,
+    "nmean_w": 0.9478373994585515,
+    "nmean_b": -0.3409145588068885,
+    "amp_w0": 1.317903618026849,
+    "amp_w1": -1.3126218620180015,
+    "amp_b0": 2.746063828238651,
+    "amp_b1": 5.253936171761358,
+    "mean_w0": -2.778041737313424,
+    "mean_w1": -0.7664040034180977,
+    "mean_b0": 34.24303517296584,
+    "mean_b1": 3.1961000042906105,
+    "std_w0": -0.415861868499362,
+    "std_w1": 0.20297719751899176,
+    "std_b0": 0.6270883831516691,
+    "std_b1": -0.9507308791161294
+  },
+  "mass_threshold": 33000000000000.0,
+  "mesh_size": 128,
+  "box_size": 1000.0,
+  "voxel_size": 7.8125,
+  "redshift": "0.000",
+  "mass_type": "fof",
+  "activation": "softplus",
+  "input": "ln(1 + delta) of the CIC density on a node-centred mesh",
+  "trained_on": [
+    "fiducial_0",
+    "fiducial_1",
+    "fiducial_2",
+    "fiducial_3"
+  ],
+  "source": "fid_fof_128_m3.3e13/pinetree_iteration_100000.npy"
+}

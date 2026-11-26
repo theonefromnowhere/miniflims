@@ -148,6 +148,9 @@ The layout is in section 8. The environment there is built from the same
 | `png_feature_w20_10k.yaml` | Exact settings of the original `runs/png_feature_w20` (no priors), 10 000 sweeps, for the cluster |
 | `png_null_w20.yaml` | Null test: same mock with truth f_NL=0, same feature model and sampler |
 | `nopng_w20_control.yaml` | Same mock without PNG in the data or the model |
+| `pinetree_sc_theta.yaml` | PineTree self-consistency, step 1: PineTree parameters with the field fixed at the truth (section 4.5) |
+| `pinetree_sc_field.yaml` | Step 2: initial conditions with the PineTree parameters fixed at the truth |
+| `pinetree_sc_joint.yaml` | Step 3: both, from a random low-amplitude start |
 
 The resolved config of any run is in `<run_dir>/config.yaml`. That copy is
 authoritative for what the run actually used.
@@ -204,6 +207,42 @@ galaxies:
 - **Sampling:** the coefficients are sampled in the `nuisance` block.
 - **Status:** smoke-tested only. `tests/test_nonlocal_bias.py` still needs
   to be written.
+
+### 4.5 PineTree population model (`galaxies.population: pinetree`)
+
+```yaml
+galaxies:
+  population: pinetree            # default "counts" = everything above
+  pinetree:
+    params_path: configs/pinetree/quijote_fid_fof_128_m3.3e13_it100000.json
+    whitening: configs/pinetree/whitening_sc64_seed1.npz   # null = raw parameters
+```
+
+- **What:** PineTree (Ding et al. 2024), a mass-resolved halo catalogue
+  conditioned on the evolved density: 3³ monopole kernel on ln ρ, softplus,
+  2-log-normal conditional mass function, Poisson process above
+  `mass_threshold`. Pure JAX in `src/miniflims/pinetree.py`. The likelihood
+  is PineTree's training loss (marked Poisson). The data are the halo
+  catalogue itself (`halo_voxel`, `halo_mass` in a data file, or a mock);
+  `counts` is only its gridding.
+- **Parameters:** 19, exported from a trained PineTree by PineTree's
+  `scripts/export_pinetree_params.py`. They replace nbar, bias and likelihood
+  parameters. `amp_w0` and `amp_b0` are fixed (softmax gauge). The rest are
+  strongly correlated (Hessian condition number ~1e6), so sample them whitened:
+  `scripts/pinetree_whitening.py` writes θ = θ_ref + L z from the Hessian at
+  the truth, and the nuisance names become `z0…z16`.
+- **Mesh:** the kernel is in voxel units. Use the training voxel (7.8125 Mpc/h:
+  500 Mpc/h on 64³, or 1000 on 128³). Use `n_grid = 2 n_mesh` so that no
+  voxel is empty.
+- **Known limit:** a few parameter directions are not constrained by the data.
+  Component 0 sits below the mass threshold, so only its tail is observed; on
+  the 500 Mpc/h mock three Hessian eigenvalues are ≤ 0. Judge recovery on the
+  predictions (`scripts/pinetree_posterior.py`) as well as on the raw parameters.
+- **Tests:** `tests/test_pinetree.py`. The reference fixture
+  (`tests/data/pinetree_reference.npz`) is the npe forward pass and
+  likelihood; it agrees to 1e-11.
+- **`sampler.init.field: truth`:** every chain starts at the mock's white
+  noise. Without a `field` block the field stays there (θ-only tests).
 
 ## 5. Running and monitoring
 
@@ -315,6 +354,8 @@ flush):
 | `scripts/plot_bispectra.py RUN [--n-bins 8] [--n-mc 200] [--from-sweep 1000]` | Binned bispectra (all closed triangles of \|k\| bins) of the white noise, the primordial δ_L (split into white-noise and PNG parts) and ρ − 1. Shows truth, posterior (field samples) and posterior − truth, in units of the Gaussian-IC scatter. Writes `RUN/bispectra/`. About 2 min at 64³. |
 | `scripts/make_quijote_data.py CUBE -c CONFIG [--nbar 5 --alpha 1.5 --truth-png 100 --seed 20]` | Galaxy counts from an N-body density cube (Quijote-PNG, 256³ CIC): the cube is CIC-assigned to the mesh, then Poisson-sampled with the config's bias. Writes `data.path` with a partial truth (`truth_rho`, `truth_nuisance`, `truth_png`; no white noise), which `data.source: file` reads. |
 | `scripts/make_hod_mock.py HALOS --hod zheng09_lrg_21.2 --sigma8 0.834 -c CONFIG [--matter-cube CUBE] [--rsd z] -o data/....npz` | HOD galaxy mock from a halo catalogue: Rockstar `out_*_pid.list` (host halos, M200b), a Quijote FoF directory (needs Pylians), or `.npz`. Uses `miniflims.hod`. Writes a counts file for `data.source: file` (NGP to the mesh nodes, with `truth_rho` from the matter cube), a galaxy catalogue `_galaxies.npz`, and a diagnostic figure. It reports halo-catalogue incompleteness against the Tinker+08 mass function. |
+| `scripts/pinetree_whitening.py -c CONFIG [-o out.npz] [--floor-frac 1e-6]` | Whitening for PineTree parameters (section 4.5): Hessian of −ln L at the truth with the true field, eigenvalues floored; writes the file named by `galaxies.pinetree.whitening`. About 1 min at 64³. |
+| `scripts/pinetree_posterior.py RUN [--burn N] [--draws 100]` | PineTree parameters of a run against the truth (mean, std, pull, R̂), plus predictions on the true field: Σλ, λ in bins of ρ, the HMF above threshold. Writes `RUN/pinetree_posterior.png`. Works on a running run. |
 | `scripts/compare_burnin.py RUN_A RUN_B ... -o out.png` | Traces of f_NL, ω, α, logL and var(x) (from `progress.log`) for several runs, plus f_NL against var(x) |
 | `scripts/make_png_meshes.py`, `make_png_realisations.py`, `plot_realisations.py` | PNG density meshes, Zel'dovich or tCOLA |
 | `scripts/compare_public_codes.py`, `compare_quijote_png.py` | Cross-checks against public codes and Quijote-PNG (needs `.[compare]`) |

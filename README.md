@@ -257,6 +257,38 @@ It supports RSD from the particle momenta and coarser output meshes.
 Not ported: multi-device sharding, the float32 cancellation guards (use
 `precision: float64`), and the other integrators (leapfrog, bullfrog).
 
+## PineTree population model
+
+`galaxies.population: pinetree` replaces the gridded-count galaxy model by
+PineTree (Ding, Lavaux & Jasche 2024), a mass-resolved halo model conditioned
+on the evolved density. Per voxel, a 3³ monopole kernel on ln ρ and a softplus
+feed a two-log-normal conditional mass function n(ln M | v). Halos above
+`mass_threshold` are a Poisson process with intensity R_v n(ln M | v):
+
+    ln L = Σ_h ln[R n(ln M_h | v_h)] − Σ_v R_v Σ_k A_k Φ((μ_k − ln M_th)/σ_k)
+
+This is PineTree's training loss with the sign flipped. The data are the halo
+catalogue (`halo_voxel`, `halo_mass`), from a mock or a data file.
+
+- **Parameters:** the 19 PineTree weights are the nuisance parameters. They come
+  from a trained model via PineTree's `scripts/export_pinetree_params.py`
+  (`configs/pinetree/`).
+- **Sampling:** in whitened coordinates (`scripts/pinetree_whitening.py`),
+  because the raw weights are strongly correlated.
+- **Tests:** the implementation (`src/miniflims/pinetree.py`, pure JAX)
+  reproduces PineTree's own code to 1e-11 (`tests/test_pinetree.py`).
+
+Self-consistency test (mock drawn from PineTree trained on Gaussian Quijote,
+2LPT, 500 Mpc/h on 64³ = PineTree's 7.8 Mpc/h voxel):
+
+```bash
+.venv-run/bin/python scripts/pinetree_whitening.py -c configs/pinetree_sc_theta.yaml
+.venv-run/bin/miniflims run -c configs/pinetree_sc_theta.yaml     # parameters, field fixed at the truth
+.venv-run/bin/python scripts/pinetree_posterior.py runs/pinetree_sc_theta
+cluster/slurm/submit.sh configs/pinetree_sc_field.yaml            # field, parameters fixed
+cluster/slurm/submit.sh configs/pinetree_sc_joint.yaml            # both
+```
+
 ## Comparison with public codes
 
 `scripts/compare_public_codes.py` writes figures and `comparison.json` to

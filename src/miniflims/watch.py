@@ -28,11 +28,17 @@ def _sampled(meta: dict) -> list[tuple[str, str, int, int]]:
 
     cfg = meta["config"]
     gal = cfg["galaxies"]
+    out = []
+    if gal.get("population", "counts") == "pinetree":
+        from .pinetree import spec_names
+
+        names, sampled = spec_names(gal)
+        out += [(n, "nuisance", 0, j) for j, (n, s) in enumerate(zip(names, sampled)) if s]
+        gal = {**gal, "n_catalogues": 0}  # skip the counts-model names below
     names = (["nbar"] + [s.name for s in BIAS_MODELS.get(gal["bias"]["model"]).param_specs]
              + [s.name for s in term_specs(gal["bias"].get("non_local", {}).get("terms", []))]
              + [s.name for s in LIKELIHOODS.get(gal["likelihood"]["model"]).param_specs])
     over = {"nbar": gal["nbar"], **gal["bias"]["params"], **gal["likelihood"]["params"]}
-    out = []
     for c in range(gal["n_catalogues"]):
         for j, n in enumerate(names):
             if (over.get(n) or {}).get("sample", True) is not False:
