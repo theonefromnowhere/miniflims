@@ -124,12 +124,33 @@ class LikelihoodConfig:
 
 
 @dataclass(frozen=True)
+class PineTreeConfig:
+    """PineTree halo population model (galaxies.population: pinetree; see
+    pinetree.py). Its parameters replace nbar, bias and likelihood parameters."""
+
+    params_path: Optional[str] = None  # JSON from PineTree's scripts/export_pinetree_params.py
+    mass_threshold: Optional[float] = None  # M_sun/h; null = the value stored in params_path
+    # null: sample the raw parameters (names as in pinetree.NAMES); otherwise an
+    # .npz from scripts/pinetree_whitening.py: sample z with theta = theta_ref + L z
+    whitening: Optional[str] = None
+    gauge_fix: bool = True  # raw mode: keep amp_w0, amp_b0 at init (softmax gauge)
+    raw_span: float = 5.0  # raw mode: prior box init +- raw_span for every parameter
+    raw_width: float = 0.05  # raw mode: initial slice width
+    z_bound: float = 50.0  # whitened mode: prior box |z_i| <= z_bound
+    params: dict[str, ParamOverride] = field(default_factory=dict)  # per-parameter overrides
+
+
+@dataclass(frozen=True)
 class GalaxyConfig:
     n_catalogues: int = 1  # independent sub-catalogues sharing the matter field
     nbar: ParamOverride = field(default_factory=ParamOverride)
     bias: BiasConfig = field(default_factory=BiasConfig)
     likelihood: LikelihoodConfig = field(default_factory=LikelihoodConfig)
     density_floor: float = 1e-3  # added to rho before logs/powers
+    # "counts": gridded counts with nbar * B(rho) and galaxies.likelihood;
+    # "pinetree": mass-resolved halo catalogue with the PineTree model
+    population: str = "counts"
+    pinetree: PineTreeConfig = field(default_factory=PineTreeConfig)
 
 
 @dataclass(frozen=True)
@@ -247,6 +268,9 @@ class GateConfig:
 @dataclass(frozen=True)
 class InitConfig:
     field_scale: float = 0.1  # initial white noise = field_scale * N(0,1)
+    # "random" (field_scale above) or "truth": start every chain at the mock's
+    # true white noise (with sampler.blocks without "field": the field stays there)
+    field: str = "random"
     nuisance_jitter: float = 0.0  # fraction of prior range to scatter starts
 
 

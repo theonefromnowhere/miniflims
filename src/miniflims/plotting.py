@@ -99,7 +99,8 @@ def plot_run(run_dir, max_field_samples: int = 40) -> list[Path]:
     set_precision(cfg.precision)
     with np.load(run_dir / "chains.npz") as f:
         z = {k: f[k] for k in f.files}
-    model = FieldModel(cfg, z["response"], z["counts"])
+    halos = ({"voxel": z["halo_voxel"], "ln_mass": z["halo_ln_mass"]} if "halo_voxel" in z else None)
+    model = FieldModel(cfg, z["response"], z["counts"], halos=halos)
     nw, box, nb = cfg.sampler.n_warmup, cfg.grid.box_size, cfg.output.n_k_bins
     names = list(model.param_names)
     has_truth = "truth/nuisance" in z

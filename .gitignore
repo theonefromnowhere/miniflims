@@ -25,3 +25,4 @@ slurm-*.out
 # ...except the small reference file the tests need
 !tests/data/
 !tests/data/borgjaxpm_tcola_reference.npz
+!tests/data/pinetree_reference.npz

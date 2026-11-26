@@ -1,0 +1,41 @@
+# PineTree self-consistency test, step 3: initial conditions and PineTree
+# parameters together, from a low-amplitude random start. Same mock and
+# whitening as pinetree_sc_theta.yaml (run scripts/pinetree_whitening.py on that
+# config first).
+#
+#   cluster/slurm/submit.sh configs/pinetree_sc_joint.yaml
+precision: float64
+
+cosmology: {h: 0.6711, omega_m: 0.3175, omega_b: 0.049, n_s: 0.9624, sigma8: 0.834}
+
+grid: {n_grid: 128, n_mesh: 64, box_size: 500.0}
+
+forward:
+  model: 2lpt
+  redshift: 0.0
+
+galaxies:
+  population: pinetree
+  pinetree:
+    params_path: configs/pinetree/quijote_fid_fof_128_m3.3e13_it100000.json
+    whitening: configs/pinetree/whitening_sc64_seed1.npz
+
+data:
+  source: mock
+  mock: {seed: 1}
+
+sampler:
+  seed: 0
+  n_chains: 2
+  n_warmup: 1000
+  n_samples: 4000
+  thin: 20
+  blocks: [field, nuisance]
+  hmc: {step_size: 0.02, n_steps: 20, n_steps_min: 10}
+  init: {nuisance_jitter: 0.02}
+  checkpoint: {every: 50}
+
+output:
+  dir: runs/pinetree_sc_joint
+  log_every: 50
+  progress_interval: 60

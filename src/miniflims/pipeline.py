@@ -58,13 +58,21 @@ def set_precision(precision: str) -> None:
     jax.config.update("jax_enable_x64", precision == "float64")
 
 
-def initial_state(model: FieldModel, cfg: Config, key) -> dict:
+def initial_state(model: FieldModel, cfg: Config, key, truth: Optional[dict] = None) -> dict:
     """Over-dispersed starting points: low-amplitude random white noise (as
-    BORG does) and, optionally, scattered nuisance parameters."""
+    BORG does) and, optionally, scattered nuisance parameters. With
+    ``sampler.init.field: truth`` every chain starts at the mock's white noise."""
     s = cfg.sampler
     k_f, k_n, k_p = jax.random.split(key, 3)
     shape = (s.n_chains,) + (model.grid.n,) * 3
-    field = s.init.field_scale * jax.random.normal(k_f, shape)
+    if s.init.field == "truth":
+        if not truth or "white_noise" not in truth:
+            raise ValueError("sampler.init.field=truth needs a mock with its true white noise")
+        field = jnp.broadcast_to(jnp.asarray(truth["white_noise"]), shape)
+    elif s.init.field == "random":
+        field = s.init.field_scale * jax.random.normal(k_f, shape)
+    else:
+        raise ValueError(f"sampler.init.field '{s.init.field}': use random or truth")
     nuisance = jax.vmap(lambda k: model.init_nuisance(k, s.init.nuisance_jitter))(
         jax.random.split(k_n, s.n_chains)
     )
@@ -275,11 +283,13 @@ def run(cfg: Config, logger: Callable = print, fresh: bool = False) -> RunResult
         run_dir.mkdir(parents=True, exist_ok=True)
         logger = _tee(logger, run_dir / "run.log")
     data = load_dataset(cfg)
-    model = FieldModel(cfg, data.response, data.counts)
+    model = FieldModel(cfg, data.response, data.counts, halos=data.halos)
     if cfg.output.log_every:
+        kind = (f"PineTree haloes above {model.pinetree.mass_threshold:.3g} M_sun/h"
+                if model.pinetree is not None else "galaxies")
         logger(
             f"grid {model.grid.n}^3, mesh {model.mesh.n}^3, box {model.grid.box:g} Mpc/h, "
-            f"{model.n_catalogues} catalogue(s), {int(data.counts.sum())} galaxies, "
+            f"{model.n_catalogues} catalogue(s), {int(data.counts.sum())} {kind}, "
             f"nuisance: {model.param_names}"
         )
 
@@ -300,7 +310,7 @@ def run(cfg: Config, logger: Callable = print, fresh: bool = False) -> RunResult
 
     key = jax.random.PRNGKey(s.seed)
     k_init, k_run = jax.random.split(key)
-    state = initial_state(model, cfg, k_init)
+    state = initial_state(model, cfg, k_init, data.truth)
     blocks = apply_gates([BLOCKS.get(name)(model, cfg) for name in s.blocks], s.gates, logger)
     if model.png is not None and "png" not in s.blocks:
         logger(f"png.enabled without a 'png' Gibbs block: PNG parameters fixed at {model.png.default().tolist()}")
@@ -372,6 +382,9 @@ def save(result: RunResult) -> Path:
     arrays["param_names"] = np.array(result.model.param_names)
     arrays["counts"] = result.data.counts
     arrays["response"] = result.data.response
+    if result.data.halos is not None:
+        arrays["halo_voxel"] = np.asarray(result.data.halos["voxel"])
+        arrays["halo_ln_mass"] = np.asarray(result.data.halos["ln_mass"])
     if result.data.truth is not None:
         arrays.update({f"truth/{k}": v for k, v in result.data.truth.items()})
     if result.mean_density is not None:

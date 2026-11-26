@@ -1,0 +1,39 @@
+# PineTree self-consistency test, step 2: infer the initial conditions with the
+# PineTree parameters fixed at the truth (no nuisance block). Same mock as
+# pinetree_sc_theta.yaml. The standard BORG-style check: white-noise variance
+# -> 1, cross-correlation of the inferred and true initial/final fields.
+#
+#   cluster/slurm/submit.sh configs/pinetree_sc_field.yaml
+precision: float64
+
+cosmology: {h: 0.6711, omega_m: 0.3175, omega_b: 0.049, n_s: 0.9624, sigma8: 0.834}
+
+grid: {n_grid: 128, n_mesh: 64, box_size: 500.0}
+
+forward:
+  model: 2lpt
+  redshift: 0.0
+
+galaxies:
+  population: pinetree
+  pinetree:
+    params_path: configs/pinetree/quijote_fid_fof_128_m3.3e13_it100000.json
+
+data:
+  source: mock
+  mock: {seed: 1}
+
+sampler:
+  seed: 0
+  n_chains: 2
+  n_warmup: 1000
+  n_samples: 3000
+  thin: 20
+  blocks: [field]
+  hmc: {step_size: 0.02, n_steps: 20, n_steps_min: 10}
+  checkpoint: {every: 50}
+
+output:
+  dir: runs/pinetree_sc_field
+  log_every: 50
+  progress_interval: 60

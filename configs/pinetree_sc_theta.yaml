@@ -1,0 +1,49 @@
+# PineTree self-consistency test, step 1: infer the PineTree parameters with the
+# density field fixed at the truth (no field block).
+#
+# Mock: Gaussian white noise -> 2LPT at z = 0 (128^3 particles, 500 Mpc/h)
+# painted on 64^3 = 7.8125 Mpc/h voxels, the voxel PineTree was trained on;
+# halos above 3.3e13 M_sun/h drawn from PineTree trained on Gaussian Quijote
+# (FoF, fiducial 0-3, 100k iterations; configs/pinetree/*.json). Truth = those
+# parameters. The two softmax-gauge parameters stay fixed, 17 are sampled, in
+# whitened coordinates z (theta = theta_ref + L z, theta_ref = truth, so z = 0
+# is the truth).
+#
+#   .venv-run/bin/python scripts/pinetree_whitening.py -c configs/pinetree_sc_theta.yaml
+#   .venv-run/bin/miniflims run -c configs/pinetree_sc_theta.yaml
+#   .venv-run/bin/python scripts/pinetree_posterior.py runs/pinetree_sc_theta
+precision: float64
+
+cosmology: {h: 0.6711, omega_m: 0.3175, omega_b: 0.049, n_s: 0.9624, sigma8: 0.834}
+
+grid: {n_grid: 128, n_mesh: 64, box_size: 500.0}
+
+forward:
+  model: 2lpt
+  redshift: 0.0
+
+galaxies:
+  population: pinetree
+  pinetree:
+    params_path: configs/pinetree/quijote_fid_fof_128_m3.3e13_it100000.json
+    whitening: configs/pinetree/whitening_sc64_seed1.npz   # written by scripts/pinetree_whitening.py
+
+data:
+  source: mock
+  mock: {seed: 1}
+
+sampler:
+  seed: 0
+  n_chains: 2
+  n_warmup: 200
+  n_samples: 1000
+  thin: 1000
+  blocks: [nuisance]
+  init: {field: truth, nuisance_jitter: 0.02}
+  checkpoint: {every: 50}
+
+output:
+  dir: runs/pinetree_sc_theta
+  save_fields: false
+  log_every: 50
+  progress_interval: 60

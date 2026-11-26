@@ -39,6 +39,7 @@ from .grid import Grid
 from .likelihood import LIKELIHOODS
 from .nonlocal_bias import NonLocalBias
 from .params import ParamSpec, apply_override, resolve_specs
+from .pinetree import PineTreeModel
 from .png import PNGModel
 from .power import linear_power
 
@@ -48,7 +49,9 @@ NBAR_SPEC = ParamSpec("nbar", 1.0, 1e-3, 1e3, 0.1)
 
 
 class FieldModel:
-    def __init__(self, cfg: Config, response, counts=None):
+    def __init__(self, cfg: Config, response, counts=None, halos=None):
+        """``halos`` (population pinetree): dict with ``voxel`` (flat mesh index)
+        and ``ln_mass`` arrays of the catalogue; ``counts`` is then its gridding."""
         self.cfg = cfg
         g = cfg.grid
         if g.n_grid % 2:
@@ -82,13 +85,22 @@ class FieldModel:
             NonLocalBias(nl, self.grid, self.mesh, self.amplitude, self.png) if nl.terms else None
         )
         nl_specs = self.nonlocal_bias.specs if self.nonlocal_bias is not None else []
-        self.specs: list[ParamSpec] = (
-            [apply_override(NBAR_SPEC, gal.nbar)]
-            + resolve_specs(tuple(self.bias.param_specs) + tuple(nl_specs), gal.bias.params, "galaxies.bias")
-            + resolve_specs(
-                self.likelihood.param_specs, gal.likelihood.params, "galaxies.likelihood"
+        if gal.population not in ("counts", "pinetree"):
+            raise ValueError(f"galaxies.population '{gal.population}': use counts or pinetree")
+        self.pinetree = None
+        if gal.population == "pinetree":
+            if self.n_catalogues != 1 or nl.terms:
+                raise ValueError("galaxies.population=pinetree: one catalogue, no non_local terms")
+            self.pinetree = PineTreeModel(gal.pinetree, self.floor)
+            self.specs: list[ParamSpec] = list(self.pinetree.specs)
+        else:
+            self.specs = (
+                [apply_override(NBAR_SPEC, gal.nbar)]
+                + resolve_specs(tuple(self.bias.param_specs) + tuple(nl_specs), gal.bias.params, "galaxies.bias")
+                + resolve_specs(
+                    self.likelihood.param_specs, gal.likelihood.params, "galaxies.likelihood"
+                )
             )
-        )
         self.param_names = [s.name for s in self.specs]
         if len(set(self.param_names)) != len(self.param_names):
             raise ValueError(f"duplicate nuisance parameter names: {self.param_names}")
@@ -106,6 +118,11 @@ class FieldModel:
             raise ValueError("response must be non-negative")
         self.response = jnp.asarray(response)
         self.counts = None
+        self.halos = None
+        if halos is not None:
+            self.set_halos(halos)
+        elif counts is not None and self.pinetree is not None:
+            raise ValueError("galaxies.population=pinetree needs the halo catalogue (halos=...)")
         if counts is not None:
             self.set_data(counts)
 
@@ -125,6 +142,23 @@ class FieldModel:
                 f"counts has shape {counts.shape}, expected {self.response.shape}"
             )
         self.counts = jnp.asarray(counts)
+        return self
+
+    def set_halos(self, halos: dict) -> "FieldModel":
+        """Halo catalogue for population pinetree: flat voxel ids and ln M."""
+        if self.pinetree is None:
+            raise ValueError("a halo catalogue needs galaxies.population=pinetree")
+        vox = np.asarray(halos["voxel"], dtype=np.int64)
+        lnm = np.asarray(halos["ln_mass"], dtype=float)
+        if vox.shape != lnm.shape or vox.ndim != 1:
+            raise ValueError("halos: voxel and ln_mass must be 1-d arrays of equal length")
+        if vox.size and (vox.min() < 0 or vox.max() >= self.mesh.n**3):
+            raise ValueError("halos: voxel ids outside the mesh")
+        if vox.size and lnm.min() < self.pinetree.ln_threshold - 1e-9:
+            raise ValueError("halos: masses below galaxies.pinetree mass threshold")
+        if vox.size and np.any(np.asarray(self.response[0]).ravel()[vox] <= 0):
+            raise ValueError("halos: some lie where the response is zero")
+        self.halos = {"voxel": jnp.asarray(vox), "ln_mass": jnp.asarray(lnm)}
         return self
 
     # ------------------------------------------------------------ parameters
@@ -205,6 +239,8 @@ class FieldModel:
         return rho, self.bias_operators(rho, self.bias_potential(x), png)
 
     def expected_counts(self, theta_row, rho, response_c, ops=None):
+        if self.pinetree is not None:  # halos above the mass threshold per voxel
+            return response_c * self.pinetree.rate(rho, theta_row).reshape(rho.shape)
         p = self.params_dict(theta_row)
         b = self.bias(rho, p, self.floor)
         if self.nonlocal_bias is not None:
@@ -218,6 +254,10 @@ class FieldModel:
     # ----------------------------------------------------------- likelihood
     def log_likelihood_row(self, theta_row, rho, counts_c, response_c, ops=None):
         """Log-likelihood of one catalogue."""
+        if self.pinetree is not None:  # marked Poisson process of the halo catalogue
+            return self.pinetree.log_likelihood(
+                rho, theta_row, self.halos["voxel"], self.halos["ln_mass"], response_c.ravel()
+            )
         lam = self.expected_counts(theta_row, rho, response_c, ops)
         return self.likelihood.log_prob(
             counts_c, lam, rho, self.params_dict(theta_row), response_c > 0, self.floor
