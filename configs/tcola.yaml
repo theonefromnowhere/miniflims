@@ -1,0 +1,46 @@
+# Field-level inference with the tCOLA particle-mesh forward model (ported
+# from BorgJaxPM) instead of Zel'dovich. One posterior gradient costs about
+# 15x configs/default.yaml at these settings (51 ms vs 4 ms at 32^3 on a
+# laptop CPU).
+precision: float64
+
+grid:
+  n_grid: 32                     # particles per dimension = initial-condition grid
+  box_size: 500.0                # Mpc/h
+
+forward:
+  model: tcola
+  redshift: 0.0
+  lattice_offset: 0.5            # 0 reproduces the BorgJaxPM particle layout
+  cola:
+    n_steps: 8                   # drift-kick-drift steps, uniform in a
+    z_start: 19.0                # Zel'dovich initial conditions
+    force_sampling: 2            # force mesh = 2 * n_grid; 1 under-resolves the force
+  rsd: {enabled: false, los: z}
+
+galaxies:
+  n_catalogues: 1
+  nbar: {init: 2.0, lower: 0.01, upper: 100.0}
+  bias:
+    model: power_law
+    params:
+      alpha: {init: 1.0, lower: 0.0, upper: 4.0}
+  likelihood:
+    model: poisson
+
+data:
+  source: mock
+  mock:
+    seed: 1
+    truth: {nbar: 3.0, alpha: 1.5}
+
+sampler:
+  n_chains: 2
+  n_warmup: 400
+  n_samples: 400
+  thin: 10
+  hmc: {step_size: 0.02, n_steps: 30, n_steps_min: 10, target_accept: 0.7}
+
+output:
+  dir: runs/tcola
+  log_every: 50

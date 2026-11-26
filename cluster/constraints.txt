@@ -1,0 +1,22 @@
+# Versions the test suite passed with (macOS arm64, Python 3.13, 2026-11-23).
+# Used as pip constraints by cluster/setup_env.sh: packages are only installed
+# if requested, but when they are, these versions are used.
+jax==0.12.1
+jaxlib==0.12.1
+jax-cuda12-plugin==0.12.1
+jax-cuda12-pjrt==0.12.1
+ml_dtypes==0.7.0
+opt_einsum==3.4.0
+numpy==2.5.5
+scipy==1.18.1
+PyYAML==6.0.4
+tqdm==4.70.1
+matplotlib==3.11.2
+pytest==9.2.0
+colossus==1.4.0
+# only for scripts/compare_public_codes.py (".[compare]")
+blackjax==1.7.1
+camb==2.0.5
+jax-cosmo==0.1.0
+jaxpm==0.1.6
+setuptools==80.10.2

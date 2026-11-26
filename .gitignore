@@ -1,0 +1,27 @@
+# Python environments and caches
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+.DS_Store
+
+# Run outputs, data and generated products (large, reproducible from the code)
+runs/
+runs_*.log
+data/
+meshes/
+figures/
+comparisons/
+*.npz
+*.npy
+*.hdf5
+*.h5
+*.list
+slurm-*.out
+
+# ...except the small reference file the tests need
+!tests/data/
+!tests/data/borgjaxpm_tcola_reference.npz

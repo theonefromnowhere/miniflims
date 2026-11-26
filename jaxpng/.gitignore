@@ -1,0 +1,6 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+*.npz
+.DS_Store
+.ipynb_checkpoints/

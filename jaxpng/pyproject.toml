@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jaxpng"
+version = "0.0.1"
+description = "JAX rewrite of the GENGARS primordial non-Gaussianity field generator (Phi^G + Phi^NG)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["jax>=0.6", "numpy>=1.26", "scipy>=1.12"]
+
+# Pylians (Pk_library) is an extra runtime dependency used only by jaxpng.measure
+# and the tests; it lives in the conda_pylians environment and is not pip-installable
+# here, so it is intentionally left out of `dependencies`.
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["jaxpng*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

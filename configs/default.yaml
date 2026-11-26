@@ -1,0 +1,59 @@
+# Quick demo: Poisson counts, power-law bias, Zel'dovich at 32^3.
+# Every key is optional; see src/miniflims/config.py for the full schema and
+# `miniflims components` for the available component names.
+precision: float64
+
+cosmology: {h: 0.681, omega_m: 0.306, omega_b: 0.0486, n_s: 0.967, sigma8: 0.807}
+
+power:
+  transfer: eisenstein_hu        # eisenstein_hu | eisenstein_hu_nowiggle | bbks
+
+grid:
+  n_grid: 32
+  box_size: 500.0                # Mpc/h
+
+forward:
+  model: zeldovich               # zeldovich | linear
+  redshift: 0.0
+  rsd: {enabled: false, los: z}
+
+galaxies:
+  n_catalogues: 1
+  nbar: {init: 2.0, lower: 0.01, upper: 100.0}
+  bias:
+    model: power_law             # linear | power_law | truncated_power_law | stdp
+    normalize: true
+    params:
+      alpha: {init: 1.0, lower: 0.0, upper: 4.0}
+  likelihood:
+    model: poisson               # poisson | gaussian | generalized_poisson
+
+data:
+  source: mock
+  mock:
+    seed: 1
+    truth: {nbar: 3.0, alpha: 1.5}
+    selections:
+      - {type: uniform}
+
+sampler:
+  seed: 0
+  n_chains: 2
+  n_warmup: 400
+  n_samples: 400
+  thin: 10
+  blocks: [field, nuisance]
+  hmc:
+    integrator: leapfrog         # leapfrog | mclachlan2 | yoshida4
+    step_size: 0.02
+    n_steps: 30
+    n_steps_min: 10
+    step_jitter: 0.2
+    adapt_step_size: true
+    target_accept: 0.7
+  slice: {max_stepout: 8, adapt_width: true}
+  init: {field_scale: 0.1, nuisance_jitter: 0.0}
+
+output:
+  dir: runs/default
+  log_every: 50

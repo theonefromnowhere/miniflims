@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "miniflims"
+version = "0.1.0"
+description = "Mini field-level inference: Eisenstein-Hu + Zel'dovich or tCOLA forward model, HMC-within-Gibbs with slice sampling, in JAX"
+requires-python = ">=3.10"
+dependencies = ["jax>=0.4.30", "numpy", "pyyaml", "tqdm"]
+
+[project.optional-dependencies]
+test = ["pytest", "scipy", "colossus"]
+plot = ["matplotlib"]
+# scripts/compare_public_codes.py (jax_cosmo needs setuptools<81)
+compare = ["matplotlib", "colossus", "camb", "jax-cosmo", "jaxpm", "blackjax", "setuptools<81"]
+
+[project.scripts]
+miniflims = "miniflims.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: end-to-end sampling tests (deselect with -m 'not slow')"]

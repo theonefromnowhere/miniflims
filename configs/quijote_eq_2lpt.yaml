@@ -1,0 +1,63 @@
+# Field-level inference of equilateral PNG from a Quijote-PNG N-body box with
+# the 2LPT forward model.
+#
+# Data: galaxy counts drawn from the z = 0 matter density of a Quijote-PNG
+# equilateral box (~/Downloads/quijote_png_eq.npy, 256^3 CIC, 1000 Mpc/h;
+# taken to be an EQ_p box, f_NL = +100) by scripts/make_quijote_data.py:
+# the cube is CIC-assigned to 64^3 (15.6 Mpc/h cells), then Poisson counts
+# with nbar = 5 per cell and the power-law bias alpha = 1.5 (~1.3 million
+# galaxies). The truth of the initial conditions is not available (no white
+# noise); truth_rho is the coarse N-body density.
+#
+# Model: 2LPT at z = 0 (Quijote used 2LPT ICs at z = 127 and Gadget-3 to
+# z = 0), Eisenstein-Hu transfer (Quijote: CAMB), Quijote fiducial cosmology;
+# the N-body vs 2LPT and transfer-function differences are part of the test.
+# PNG block gated until <x^2> >= 0.95, warm-up 1000 sweeps (as
+# png_feature_w20_gated, which recovered the truth where the ungated run did not).
+#
+#   .venv-run/bin/python scripts/make_quijote_data.py ~/Downloads/quijote_png_eq.npy \
+#       -c configs/quijote_eq_2lpt.yaml --nbar 5 --alpha 1.5 --truth-png 100 --seed 20
+#   cluster/slurm/submit.sh configs/quijote_eq_2lpt.yaml
+precision: float64
+
+cosmology: {h: 0.6711, omega_m: 0.3175, omega_b: 0.049, n_s: 0.9624, sigma8: 0.834}
+
+grid: {n_grid: 64, box_size: 1000.0}
+
+forward:
+  model: 2lpt
+
+png:
+  enabled: true
+  template: equilateral
+  params:
+    f_NL: {init: 0.0, lower: -3000.0, upper: 3000.0, width: 50.0}
+
+galaxies:
+  nbar: {init: 4.0, lower: 0.01, upper: 100.0}
+  bias:
+    model: power_law
+    params:
+      alpha: {init: 1.0, lower: 0.0, upper: 4.0}
+  likelihood:
+    model: poisson
+
+data:
+  source: file
+  path: data/quijote/eq_p_64.npz
+
+sampler:
+  n_chains: 2
+  n_warmup: 1000
+  n_samples: 9000
+  thin: 10
+  blocks: [field, nuisance, png]
+  hmc: {step_size: 0.02, n_steps: 20, n_steps_min: 10, target_accept: 0.7}
+  checkpoint: {every: 20}
+  gates:
+    png: {min_field_variance: 0.95}
+
+output:
+  dir: runs/quijote_eq_2lpt
+  log_every: 20
+  progress_interval: 60

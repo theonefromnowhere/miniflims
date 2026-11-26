@@ -1,0 +1,46 @@
+# Equilateral PNG: truth f_NL = 500 (jaxpng equilateral template), only f_NL
+# sampled. Same 64^3, 1024 Mpc/h mock (seed 20), starting point (f_NL = 0) and
+# sampler as png_feature_w20_10k, 10 000 sweeps.
+#
+#   cluster/slurm/submit.sh configs/png_equilateral_fnl500.yaml
+precision: float64
+
+grid: {n_grid: 64, box_size: 1024.0}
+
+forward:
+  model: zeldovich
+
+png:
+  enabled: true
+  template: equilateral
+  params:
+    f_NL: {init: 0.0, lower: -5000.0, upper: 5000.0, width: 100.0}
+
+galaxies:
+  nbar: {init: 4.0, lower: 0.01, upper: 100.0}
+  bias:
+    model: power_law
+    params:
+      alpha: {init: 1.0, lower: 0.0, upper: 4.0}
+  likelihood:
+    model: poisson
+
+data:
+  source: mock
+  mock:
+    seed: 20
+    truth: {nbar: 5.0, alpha: 1.5, f_NL: 500.0}
+
+sampler:
+  n_chains: 2
+  n_warmup: 300
+  n_samples: 9700
+  thin: 10
+  blocks: [field, nuisance, png]
+  hmc: {step_size: 0.02, n_steps: 20, n_steps_min: 10, target_accept: 0.7}
+  checkpoint: {every: 20}
+
+output:
+  dir: runs/png_equilateral_fnl500
+  log_every: 20
+  progress_interval: 60

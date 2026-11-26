@@ -1,0 +1,23 @@
+Bootstrap: docker
+From: mambaorg/micromamba:1.5-jammy
+
+# Apptainer/Singularity image with the jaxpng runtime + the Claude Code CLI.
+# Build:   apptainer build --fakeroot claude.sif claude.def
+#   (if --fakeroot is not allowed on your cluster, build this on your laptop and
+#    copy the resulting claude.sif to the cluster with scp.)
+# For GPU runs instead, change the base to a CUDA image, e.g.
+#   From: nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+# and install jax with:  pip install "jax[cuda12]"
+
+%post
+    export PATH=/opt/conda/bin:$PATH
+    micromamba install -y -n base -c conda-forge \
+        python=3.11 nodejs=20 jax numpy scipy matplotlib ipykernel pytest nbformat nbconvert
+    npm config set prefix /opt/npm
+    npm install -g @anthropic-ai/claude-code
+
+%environment
+    export PATH=/opt/conda/bin:/opt/npm/bin:$PATH
+
+%runscript
+    exec claude "$@"

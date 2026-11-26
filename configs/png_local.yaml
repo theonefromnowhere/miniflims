@@ -1,0 +1,49 @@
+# Field-level inference of local primordial non-Gaussianity: f_NL is sampled
+# in its own Gibbs step (slice sampling given the field and the bias), the
+# initial conditions with HMC through Phi = Phi_G + f_NL Phi_NG (jaxpng).
+#
+# Cost per HMC gradient at 32^3 (laptop CPU): 4 ms with local_exact (jaxpng's
+# exact local anchor Phi_NG = Phi_G^2 - <Phi_G^2>), 51 ms with the Schwinger
+# kernel (32-node ln t quadrature, the default), 168 ms for the equilateral
+# template. png.n_t: 24 with png.eps: 1e-4 is ~25 % faster at 2e-4 error.
+precision: float64
+
+grid: {n_grid: 32, box_size: 1000.0}
+
+forward:
+  model: zeldovich             # or tcola (see configs/tcola.yaml)
+
+png:
+  enabled: true
+  template: local              # local | equilateral | orthogonal | feature | equilateral_feature
+  local_exact: true
+  params:
+    f_NL: {init: 0.0, lower: -10000.0, upper: 10000.0, width: 300.0}
+  # feature templates also take: omega: {init: 20.0, sample: true}, phase: {...}
+
+galaxies:
+  nbar: {init: 10.0, lower: 0.01, upper: 100.0}
+  bias:
+    model: power_law
+    params:
+      alpha: {init: 1.0, lower: 0.0, upper: 4.0}
+  likelihood:
+    model: poisson
+
+data:
+  source: mock
+  mock:
+    seed: 1
+    truth: {nbar: 10.0, alpha: 1.5, f_NL: 1000.0}   # f_NL goes to the PNG truth
+
+sampler:
+  n_chains: 2
+  n_warmup: 400
+  n_samples: 600
+  thin: 10
+  blocks: [field, nuisance, png]
+  hmc: {step_size: 0.02, n_steps: 30, n_steps_min: 10, target_accept: 0.7}
+
+output:
+  dir: runs/png_local
+  log_every: 50

@@ -1,0 +1,40 @@
+# Control for runs/png_feature_w20: the same 64^3, 1024 Mpc/h Zel'dovich galaxy
+# mock (seed 20, so the same Gaussian white noise; nbar 5, alpha 1.5) and the
+# same sampler, without primordial non-Gaussianity in the data or the model.
+# Checks whether the slow burn-in of the largest-scale white-noise modes seen
+# in that run (P_x(k_F) ~ 0.77 at sweep 333, var(x) ~ 0.95) happens without PNG.
+precision: float64
+
+grid: {n_grid: 64, box_size: 1024.0}
+
+forward:
+  model: zeldovich
+
+galaxies:
+  nbar: {init: 4.0, lower: 0.01, upper: 100.0}
+  bias:
+    model: power_law
+    params:
+      alpha: {init: 1.0, lower: 0.0, upper: 4.0}
+  likelihood:
+    model: poisson
+
+data:
+  source: mock
+  mock:
+    seed: 20
+    truth: {nbar: 5.0, alpha: 1.5}
+
+sampler:
+  n_chains: 2
+  n_warmup: 300
+  n_samples: 500
+  thin: 10
+  blocks: [field, nuisance]
+  hmc: {step_size: 0.02, n_steps: 20, n_steps_min: 10, target_accept: 0.7}
+  checkpoint: {every: 20}
+
+output:
+  dir: runs/nopng_w20_control
+  log_every: 20
+  progress_interval: 60

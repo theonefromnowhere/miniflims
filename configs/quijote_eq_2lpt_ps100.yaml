@@ -1,0 +1,64 @@
+# configs/quijote_eq_2lpt.yaml with Manticore's white-noise power-spectrum
+# prior (lambda_ps = 100). Without it (job 64886692, stopped at sweep 1414) the
+# inferred white noise was not flat in k: power 8% low in the lowest |k| bin,
+# 3-5% low at 0.03-0.09 h/Mpc and 2-7% high above 0.11 h/Mpc (<x^2> ~ 0.964),
+# i.e. the initial conditions were distorted to make 2LPT reproduce the
+# N-body density; alpha came out at 1.516 +- 0.003 (input 1.5) and f_NL was
+# still drifting (-95 +- 76 after 280 sampling sweeps; truth +100).
+#
+# Data: Quijote-PNG equilateral f_NL = +100 box (~/Downloads/quijote_png_eq.npy),
+# CIC-assigned to 64^3, Poisson counts nbar = 5, alpha = 1.5
+# (data/quijote/eq_p_64.npz, from scripts/make_quijote_data.py).
+#
+#   cluster/slurm/submit.sh configs/quijote_eq_2lpt_ps100.yaml
+precision: float64
+
+cosmology: {h: 0.6711, omega_m: 0.3175, omega_b: 0.049, n_s: 0.9624, sigma8: 0.834}
+
+grid: {n_grid: 64, box_size: 1000.0}
+
+forward:
+  model: 2lpt
+
+png:
+  enabled: true
+  template: equilateral
+  params:
+    f_NL: {init: 0.0, lower: -3000.0, upper: 3000.0, width: 50.0}
+
+# Manticore's power-spectrum prior on the white noise (Eq. 6) with their
+# strength lambda_ps = 100: keeps the binned white-noise spectrum P_i / P_bar
+# flat (12 |k| bins), so the initial conditions cannot be reshaped to make
+# 2LPT mimic the N-body density.
+prior:
+  lambda_ps: 100.0
+  ps_prior_bins: 12
+
+galaxies:
+  nbar: {init: 4.0, lower: 0.01, upper: 100.0}
+  bias:
+    model: power_law
+    params:
+      alpha: {init: 1.0, lower: 0.0, upper: 4.0}
+  likelihood:
+    model: poisson
+
+data:
+  source: file
+  path: data/quijote/eq_p_64.npz
+
+sampler:
+  n_chains: 2
+  n_warmup: 1000
+  n_samples: 9000
+  thin: 10
+  blocks: [field, nuisance, png]
+  hmc: {step_size: 0.02, n_steps: 20, n_steps_min: 10, target_accept: 0.7}
+  checkpoint: {every: 20}
+  gates:
+    png: {min_field_variance: 0.95}
+
+output:
+  dir: runs/quijote_eq_2lpt_ps100
+  log_every: 20
+  progress_interval: 60

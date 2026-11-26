@@ -1,0 +1,60 @@
+# png_feature_w20_10k with the PNG block gated: f_NL and omega are held at
+# their starting values (f_NL = 0, omega = 15) until the chain's white-noise
+# <x^2> reaches 0.95, then sampled as before. In the ungated runs the PNG
+# parameters drifted to f_NL ~ -600 to -2000, omega ~ 10-12 while the field
+# was still growing from its low-amplitude start (field_scale 0.1), and the
+# chains with f_NL = +500 ended in the omega ~ 12 alias.
+#
+# Same truth (f_NL = 500, omega = 20), mock (seed 20) and sampler, 10 000
+# sweeps. Warm-up is 1000 sweeps instead of 300: <x^2> reaches 0.95 only
+# around sweep 320-360 at 64^3, and the PNG slice widths adapt only during
+# warm-up while the block is active (and samples must not include sweeps
+# with the PNG parameters still held).
+#
+#   cluster/slurm/submit.sh configs/png_feature_w20_gated.yaml
+precision: float64
+
+grid: {n_grid: 64, box_size: 1024.0}
+
+forward:
+  model: zeldovich
+
+png:
+  enabled: true
+  template: feature
+  params:
+    f_NL: {init: 0.0, lower: -5000.0, upper: 5000.0, width: 100.0}
+    omega: {init: 15.0, lower: 5.0, upper: 60.0, width: 1.0, sample: true}
+    phase: {init: 0.0}
+
+galaxies:
+  nbar: {init: 4.0, lower: 0.01, upper: 100.0}
+  bias:
+    model: power_law
+    params:
+      alpha: {init: 1.0, lower: 0.0, upper: 4.0}
+  likelihood:
+    model: poisson
+
+data:
+  source: mock
+  mock:
+    seed: 20
+    truth: {nbar: 5.0, alpha: 1.5, f_NL: 500.0, omega: 20.0}
+
+sampler:
+  n_chains: 2
+  n_warmup: 1000
+  n_samples: 9000
+  thin: 10
+  blocks: [field, nuisance, png]
+  hmc: {step_size: 0.02, n_steps: 20, n_steps_min: 10, target_accept: 0.7}
+  checkpoint: {every: 20}
+  # f_NL and omega stay at their init (0, 15) until the chain's <x^2> >= 0.95
+  gates:
+    png: {min_field_variance: 0.95}
+
+output:
+  dir: runs/png_feature_w20_gated
+  log_every: 20
+  progress_interval: 60
